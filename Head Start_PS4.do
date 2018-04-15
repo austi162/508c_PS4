@@ -6,7 +6,7 @@
 
 /* Credit: Somya Bajaj, Joelle Gamble, Anastasia Korolkova, Luke Strathmann, Chris Austin
 Last modified by: Chris Austin
-Last modified on: 4/7/18 */
+Last modified on: 4/15/18 */
 
 clear all
 
@@ -19,11 +19,11 @@ set more off
 set matsize 10000
 capture log close
 pause on
-log using PS4.log, replace
+*log using PS4.log, replace
 
 *Download outreg2
-*ssc install outreg2
-*ssc install mdesc
+ssc install outreg2
+ssc install mdesc
 
 /*foreach var in sibdiff hispanic black male firstborn lninc_0to3 momed dadhome_0to3 //
 ppvt_3 lnbw comp_score_5to6 comp_score_7to10 comp_score_11to14 repeat learndis //
@@ -58,7 +58,7 @@ su if head_start == 0
 
 local socioecon hispanic black male firstborn momed dadhome_0to3
 
-local cognitive ppvt_3 lnbw
+local cognitive ppvt_3
 
 **Naive regression
 reg comp_score_5to6 head_start `socioecon', r cluster(mom_id)
@@ -118,20 +118,23 @@ pause
 //effects of Head Start on test scores? If the fixed effects results are different 
 //from those in your answer from question (2), explain why.
 
+local socioecon hispanic black male firstborn momed dadhome_0to3
+
+local cognitive ppvt_3
 
 **Naive FE regression
-xtreg comp_score_5to6 head_start `socioecon' i.mom_id, r
+xtreg comp_score_5to6 head_start `socioecon', fe
 
 pause
 
 **This returns positive effect significant at the 99% CI. Attending Head Start
 **increases test scores by 7.6 points on average. 
 
-reg comp_score_5to6 head_start `cognitive' i.mom_id, r
+xtreg comp_score_5to6 head_start `cognitive', fe
 
 pause
 
-reg comp_score_5to6 head_start `socioecon' `cognitive' i.mom_id, r
+xtreg comp_score_5to6 head_start `socioecon' `cognitive', fe
 
 pause
 
@@ -146,17 +149,17 @@ xtreg comp_score_5to6 head_start `socioecon' `cognitive', re
 
 estimates store re
 
-xtreg comp_score_5to6 head_start `socioecon' `cognitive' , fe
+xtreg comp_score_5to6 head_start `socioecon' `cognitive', fe
 
 estimates store fe
 
 hausman fe re
 
 **We confirm that Fixed Effects is the appropriate model to use.
-**Running the Hausman test, we reject the null hypothesis that B = 0. This means
-**that the because B is not equal to zero, the covariance between the group level
-**error term and  x_ij are also not equal to zero. This means that B from RE would 
-**be an inconsistent estimator. Therefore, we will use FE.
+**Running the Hausman test, we reject the null hypothesis that the covariance 
+**between the group level error term and the vector of individual level 
+**covariates = 0. This means that coefficient from RE would be an inconsistent 
+**estimator. Therefore, we will use FE.
 
 pause
 
@@ -180,13 +183,25 @@ corr mean_head_start ppvt, covariance
 
 **Covariance between Head Start and the IQ test is -.75, and the covariance between
 **mean Head Start within families and the IQ test is -.90, this implies that 
-**FE may be an unbiased estimator. Still need to determine whether these two 
-**covariances are statistically different. Can we conduct some sort of t-test?
+**FE may be an unbiased estimator if we assume this is a statistically insignificant 
+**difference. 
 
-**We can conduct Box's M Test to determine whether two covariance matrices are
-**equal.
+**We can construct CI for Pearson correlations for two or more numeric variables 
+**specified in varlist together with confidence intervals calculated by using 
+**Fisher's z transform.
 
-mvtest covariances head_start mean_head_start, by(ppvt)
+corrci head_start ppvt
+
+corrci mean_head_start ppvt
+
+**Assuming that IQ test from PPVT is representative of all omitted individual
+**error terms, we can test the CI on each correlation coefficient to see if they
+**are statistically different. If they are not, then FE is unbiased. 
+
+**The CI on Head Start and PPVT is [-0.275,-0.131] and the CI on family mean Head 
+**Start and PPVT is [-0.216,-0.068]. Therefore it is unlikely that we can conclude 
+**that the two correlations are statistically different. And thus, we can conclude
+**that the FE specification with IQ test scores is an unbiased estimator.
 
 
 ********************************************************************************
@@ -198,12 +213,8 @@ mvtest covariances head_start mean_head_start, by(ppvt)
 //in later childhood, or do the effects fade out with age? Make sure you compare 
 //results using comparable test-score units. 
 
-local socioecon hispanic black male firstborn momed dadhome_0to3
-
-local cognitive ppvt_3 lnbw
-
 **FE reg on 7-10 test score
-reg comp_score_7to10 head_start `socioecon' i.mom_id, r
+xtreg comp_score_7to10 head_start `socioecon', fe
 
 **It appears that Head Start is less effective at improving later stage test scores.
 **It only increases test scores by 4 points compared to 7.6 before. This result
@@ -212,7 +223,7 @@ reg comp_score_7to10 head_start `socioecon' i.mom_id, r
 pause
 
 **FE reg on 11-14 test score
-reg comp_score_11to14 head_start `socioecon' i.mom_id, r
+xtreg comp_score_11to14 head_start `socioecon', fe
 
 **It appears that Head Start is effective at improving later stage test scores 11-14.
 **Although it increases test scores by 5.4 points compared to 7.6 before. This 

@@ -22141,3 +22141,5 @@ F test that all u_i=0: F(1185, 832) = 1.37                   Prob > F = 0.0000
 
 . 
 end of do-file
+-> . exit, clear
+--Break--  (Type BREAK to send real break back to calling program)
