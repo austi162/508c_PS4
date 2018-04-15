@@ -56,37 +56,58 @@ su if head_start == 0
 //Start on test scores? Be sure to explain the magnitude of the estimated effect. 
 //Is it reasonable to assume that Head Start participation is exogenous?
 
-local socioecon hispanic black male firstborn lninc_0to3 momed dadhome_0to3
+local socioecon hispanic black male firstborn momed dadhome_0to3
 
-local cognitive ppvt_3 repeat learndis
+local cognitive ppvt_3 lnbw
 
 **Naive regression
 reg comp_score_5to6 head_start `socioecon', r cluster(mom_id)
 
+pause
+
 reg comp_score_5to6 head_start `cognitive', r cluster(mom_id)
+
+pause
 
 reg comp_score_5to6 head_start `socioecon' `cognitive', r cluster(mom_id)
 
-**Naive random effects
+pause
+
+**The effect from our naive regression is attending Head Start results in a 1.9 
+**point decrease in test score. This is statistically insignificant at the 90% CI.
+
+
+**Naive random effects regression
 xtset mom_id
 
 xtreg comp_score_5to6 head_start `socioecon', re
 
+pause
+
 xtreg comp_score_5to6 head_start `cognitive', re
+
+pause
 
 xtreg comp_score_5to6 head_start `socioecon' `cognitive', re
 
+pause
 
-**Going to Head Start decreases your score by 5 points on average, but the effects
-**are not statistically significant. We also cannot conclude that signing up for
-**head start is exogenous. These are decisions at the family level and most likely
-**mean that children who were enrolled were enrolled for various reasons, and were
-**most likley more prone to be falling behind in school compared to the avarage
-**student.
+
+**We also cannot conclude that signing up for head start is exogenous. These are 
+**decisions at the family level and most likely mean that children who were enrolled 
+**were enrolled for various reasons, and were most likley more prone to be falling 
+**behind in school compared to the avarage student. 
+
+**As a result, after clustering and running RE to account for serial correlation 
+**within families, we find that Head Start still decreases test scores, although 
+**the effect is still statistically insignificant at the 90% CI.
+
 **Additionally, Random Effects estimates have smaller standard errors, as expected,
-**after RE efficiently reweights the variance of the between and within level variance.
-**Assuming within family variation is smaller than betwee, the RE model will place
+**as RE efficiently reweights the variance of the between and within level variance.
+**Assuming within family variation is smaller than between, the RE model will place
 **less weight on between variation and more weight on within variation.
+
+
 
 ********************************************************************************
 **                                   P3                                      **
@@ -97,16 +118,47 @@ xtreg comp_score_5to6 head_start `socioecon' `cognitive', re
 //effects of Head Start on test scores? If the fixed effects results are different 
 //from those in your answer from question (2), explain why.
 
-**Naive regression
-reg comp_score_5to6 head_start `socioecon' i.mom_id
 
-reg comp_score_5to6 head_start `cognitive' i.mom_id
+**Naive FE regression
+xtreg comp_score_5to6 head_start `socioecon' i.mom_id, r
 
-reg comp_score_5to6 head_start `socioecon' `cognitive' i.mom_id
+pause
 
-**With fixed effects, the new interpretation is that participating in Head Start
-**decreases your 5-6 age test score by about 11.5 points compared to 5.5 before.
-**Standard errors are correct because used brute force rather than finesse method. 
+**This returns positive effect significant at the 99% CI. Attending Head Start
+**increases test scores by 7.6 points on average. 
+
+reg comp_score_5to6 head_start `cognitive' i.mom_id, r
+
+pause
+
+reg comp_score_5to6 head_start `socioecon' `cognitive' i.mom_id, r
+
+pause
+
+**Interestingly, adding individual cognitive scores decreases the significance and
+**implies that Head Start decreases test scores. This is statisticall insignificant
+**at the 95% CI.
+
+**To whether FE or RE is appropriate, we will run the Hausman test to determine 
+**if the estimated coefficients are jointly significantly different from zero. 
+
+xtreg comp_score_5to6 head_start `socioecon' `cognitive', re
+
+estimates store re
+
+xtreg comp_score_5to6 head_start `socioecon' `cognitive' , fe
+
+estimates store fe
+
+hausman fe re
+
+**We confirm that Fixed Effects is the appropriate model to use.
+**Running the Hausman test, we reject the null hypothesis that B = 0. This means
+**that the because B is not equal to zero, the covariance between the group level
+**error term and  x_ij are also not equal to zero. This means that B from RE would 
+**be an inconsistent estimator. Therefore, we will use FE.
+
+pause
 
 ********************************************************************************
 **                                   P4                                      **
@@ -115,25 +167,27 @@ reg comp_score_5to6 head_start `socioecon' `cognitive' i.mom_id
 //causal. Can you think of some ways to test that assumption? If so, run the tests. 
 //What do your tests suggest about the validity of the fixed effects estimator?
 
-**In order to interpret the fixed effects estimator as appropriate, we need to assume 
-**that the group-level error component is correlated with Head Start and test scores.
-
 **In order to interpret the fixed effects estimator as causal, the covariance between
 **the individual xi and the individual error term should equal the covariance of 
-**the average individual xi and the individual error term.
+**the average individual xi and the individual error term. To test this, I will
+**compare the intentionally excluded IQ test score to test whether they are equal.
 
-**That there might be some unobserved family characteristics that are correlated
-**with being in the Head Start program (such as being poorer).
-**Because we believe that assignment of Head Start is conditioned on falling
-**into a lower socioeconomic status, then family-level covariates are important,
-**making fixed effects estimation appropriate.
+egen mean_head_start = mean(head_start), by(mom_id)
 
+corr head_start ppvt, covariance
 
+corr mean_head_start ppvt, covariance
 
-**We can test this by seeing if certain socioeconomic characteristics are more 
-**strongly correlated among siblings versus nonsiblings. 
+**Covariance between Head Start and the IQ test is -.75, and the covariance between
+**mean Head Start within families and the IQ test is -.90, this implies that 
+**FE may be an unbiased estimator. Still need to determine whether these two 
+**covariances are statistically different. Can we conduct some sort of t-test?
 
-**The test confirm that fixed effects estimator is the appropriate estimator.
+**We can conduct Box's M Test to determine whether two covariance matrices are
+**equal.
+
+mvtest covariances head_start mean_head_start, by(ppvt)
+
 
 ********************************************************************************
 **                                   P5                                       **
@@ -144,19 +198,27 @@ reg comp_score_5to6 head_start `socioecon' `cognitive' i.mom_id
 //in later childhood, or do the effects fade out with age? Make sure you compare 
 //results using comparable test-score units. 
 
-**Naive regression
-reg comp_score_7to10 head_start `socioecon' i.mom_id
+local socioecon hispanic black male firstborn momed dadhome_0to3
 
-reg comp_score_7to10 head_start `cognitive' i.mom_id
+local cognitive ppvt_3 lnbw
 
-reg comp_score_7to10 head_start `socioecon' `cognitive' i.mom_id
+**FE reg on 7-10 test score
+reg comp_score_7to10 head_start `socioecon' i.mom_id, r
 
-**Naive regression
-reg comp_score_11to14 head_start `socioecon' i.mom_id
+**It appears that Head Start is less effective at improving later stage test scores.
+**It only increases test scores by 4 points compared to 7.6 before. This result
+**is not statistically significant. 
 
-reg comp_score_11to14 head_start `cognitive' i.mom_id
+pause
 
-reg comp_score_11to14 head_start `socioecon' `cognitive' i.mom_id
+**FE reg on 11-14 test score
+reg comp_score_11to14 head_start `socioecon' i.mom_id, r
+
+**It appears that Head Start is effective at improving later stage test scores 11-14.
+**Although it increases test scores by 5.4 points compared to 7.6 before. This 
+**result is statistically significant at the 90% CI. 
+
+pause
 
 
 ********************************************************************************
@@ -166,11 +228,50 @@ reg comp_score_11to14 head_start `socioecon' `cognitive' i.mom_id
 //besides test scores. Many of these outcomes are binary, but you may use linear 
 //models. Interpret your results.
 
+local socioecon hispanic black male firstborn momed dadhome_0to3
+
+**FE reg on HS Grad
+xtreg hsgrad head_start `socioecon', fe
+
+**FE reg on Self-Reported Health Status
+xtreg fphealth head_start `socioecon', fe
+
+**Participating in Head Start led to a 13% increase in the probability of graduating
+**High School.
+
+**Participating in Head Start led to an 8.3% decrease in the probability that you
+**identified as poor health later in life.
+
+pause 
+
 ********************************************************************************
 **                                   P7                                       **
 ********************************************************************************
 //Do the effects of Head Start participation on longer-term outcomes vary by 
 //race/ethnicity? By sex?
+
+local socioecon hispanic black male firstborn momed dadhome_0to3
+
+**Interaction between HS and race/ gender on HS graduation.
+xtreg hsgrad head_start `socioecon' i.head_start##i.black, fe
+**not significant.
+
+xtreg hsgrad head_start `socioecon' i.head_start##i.hispanic, fe
+**not significant
+
+xtreg hsgrad head_start `socioecon' i.head_start##i.male, fe
+**not significant.
+
+pause
+
+**Interaction between HS and race/ gender on health status.
+xtreg fphealth head_start `socioecon' i.head_start##i.black, fe
+**not significant.
+
+xtreg fphealth head_start `socioecon' i.head_start##i.male, fe
+**not signiciant.
+
+pause
 
 ********************************************************************************
 **                                   P8                                       **
@@ -180,4 +281,4 @@ reg comp_score_11to14 head_start `socioecon' `cognitive' i.mom_id
 //would be a good idea? Would you feel comfortable using your results to predict 
 //the effects of such an expansion? Why or why not?
 
-**Talk about internal and specifically external validity.
+**See submitted writeup.
